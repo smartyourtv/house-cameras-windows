@@ -43,20 +43,26 @@ class _DataBlob(ctypes.Structure):
     _fields_ = [("cbData", ctypes.c_ulong), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
 
 
-def _dpapi(data, protect=True):
+_CRYPTPROTECT_UI_FORBIDDEN = 0x1
+
+
+def _dpapi(data_bytes, protect=True):
+    """Bytes in, bytes out. (A str round-trip through latin-1/utf-8
+    corrupted cipher bytes >= 0x80 and silently broke unprotect on
+    Windows — caught by the CI test gate on the first v1.0.0 build.)"""
     if sys.platform != "win32":
         return None
-    raw = data.encode("utf-8")
-    buf = ctypes.create_string_buffer(raw, len(raw))
-    blob_in = _DataBlob(len(raw), ctypes.cast(buf, ctypes.POINTER(ctypes.c_ubyte)))
+    buf = ctypes.create_string_buffer(data_bytes, len(data_bytes))
+    blob_in = _DataBlob(len(data_bytes),
+                        ctypes.cast(buf, ctypes.POINTER(ctypes.c_ubyte)))
     blob_out = _DataBlob()
     fn = (ctypes.windll.crypt32.CryptProtectData if protect
           else ctypes.windll.crypt32.CryptUnprotectData)
-    if not fn(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+    if not fn(ctypes.byref(blob_in), None, None, None, None,
+              _CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(blob_out)):
         return None
     try:
-        out = ctypes.string_at(blob_out.pbData, blob_out.cbData)
-        return out
+        return ctypes.string_at(blob_out.pbData, blob_out.cbData)
     finally:
         ctypes.windll.kernel32.LocalFree(blob_out.pbData)
 
@@ -64,7 +70,7 @@ def _dpapi(data, protect=True):
 def protect_password(password):
     if not password:
         return ""
-    out = _dpapi(password, protect=True)
+    out = _dpapi(password.encode("utf-8"), protect=True)
     if out is not None:
         return _DPAPI_PREFIX + base64.b64encode(out).decode("ascii")
     return _PLAIN_PREFIX + base64.b64encode(password.encode("utf-8")).decode("ascii")
@@ -76,7 +82,7 @@ def unprotect_password(stored):
     try:
         if stored.startswith(_DPAPI_PREFIX):
             raw = base64.b64decode(stored[len(_DPAPI_PREFIX):])
-            out = _dpapi(raw.decode("latin-1"), protect=False)
+            out = _dpapi(raw, protect=False)
             return out.decode("utf-8") if out is not None else ""
         if stored.startswith(_PLAIN_PREFIX):
             return base64.b64decode(stored[len(_PLAIN_PREFIX):]).decode("utf-8")
