@@ -150,3 +150,12 @@ class TestSelfTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestApplyCredentials(unittest.TestCase):
+    def test_apply_to_all(self):
+        from cameracore.models import apply_credentials
+        cams = [Camera(name="a"), Camera(name="b")]
+        n = apply_credentials(cams, Credentials("admin", "pw"))
+        self.assertEqual(n, 2)
+        self.assertTrue(all(c.credentials.password == "pw" for c in cams))

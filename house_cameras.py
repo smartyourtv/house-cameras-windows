@@ -335,7 +335,7 @@ def launch_gui():
         cam = cam or Camera(name="", host="", family="generic")
         win = tk.Toplevel(root)
         win.title("Add a camera" if is_new else "Camera settings")
-        win.geometry("440x380")
+        win.geometry("440x430")
         fields = {}
 
         def row(label, key, initial, show=None, widget="entry"):
@@ -358,6 +358,9 @@ def launch_gui():
         enabled = tk.BooleanVar(value=cam.enabled)
         tk.Checkbutton(win, text="Show this camera", variable=enabled).pack(
             anchor="w", padx=12, pady=8)
+        apply_all = tk.BooleanVar(value=True)
+        tk.Checkbutton(win, text="Use this user name and password for ALL cameras",
+                       variable=apply_all).pack(anchor="w", padx=12)
 
         def save():
             cam.name = fields["name"].get().strip() or cam.name or "camera"
@@ -366,6 +369,9 @@ def launch_gui():
             cam.credentials = Credentials(fields["username"].get().strip(),
                                           fields["password"].get())
             cam.enabled = enabled.get()
+            if apply_all.get() and cam.credentials.username:
+                from cameracore.models import apply_credentials
+                apply_credentials(cameras, cam.credentials)
             if is_new:
                 cameras.append(cam)
             cam.main, cam.sub = cam.main.__class__(), cam.sub.__class__()

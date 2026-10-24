@@ -34,6 +34,17 @@ class CameraSource:
         return cls(**known)
 
 
+def apply_credentials(cameras, credentials):
+    """Give every camera the same login (a fleet that shares one
+    password is the common case; per-camera settings can still
+    override any camera afterwards). Returns how many were set."""
+    count = 0
+    for cam in cameras:
+        cam.credentials = Credentials(credentials.username, credentials.password)
+        count += 1
+    return count
+
+
 @dataclass
 class Camera:
     name: str = ""
